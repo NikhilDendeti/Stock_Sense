@@ -1,0 +1,13 @@
+django
+crewai
+crewai[tools]
+crewai_tools
+qdrant_client
+sentence-transformers
+groq
+transformers
+huggingface_hub
+torch
+tqdm
+PyMuPDF
+tenacity
