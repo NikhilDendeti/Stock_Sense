@@ -110,6 +110,13 @@ class MetadataExtractor:
         - "summary" is concise (under 25 words).
         - Don't include JSON in the response heading.
         -Don't include any headings in the response body. Like metadata:. I only want Pure JSON format.
+
+        Predefined Industries:
+        ["Technology", "Healthcare", "Finance", "Energy", "Consumer Goods", "Real Estate", "Industrials", "Emerging Sectors"]
+
+        Predefined News Types:
+        ["Earnings", "Stock Movements", "Mergers & Acquisitions", "Regulatory & Legal", "Macroeconomic",
+        "Company Announcements", "Market Trends", "Geopolitical Impact"]
         
         Text:
         "{text}"
@@ -209,7 +216,7 @@ news_pipeline = NewsPipeline(
     news_api_key="7549ec8c3f790b338e0e57e8f5014c1ac1782714",
     qdrant_api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzQ2MTc3MDAyfQ.v-Kra-ZRUdTAe0OBCmCjEvZi8rW_HKY0Cw2Vp-AM5g4",
     qdrant_url="https://3f0e0b2d-447a-48bd-8c2f-3a227ff85295.eu-west-1-0.aws.cloud.qdrant.io:6333/",
-    collection_name="stock_market_news_india_4",
+    collection_name="stock_market_news_india_5",
     llm_api_key="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"
 )
 news_pipeline.process_news()
