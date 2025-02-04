@@ -2,7 +2,6 @@ django
 crewai
 crewai[tools]
 crewai_tools
-qdrant_client
 sentence-transformers
 groq
 transformers
@@ -11,3 +10,5 @@ torch
 tqdm
 PyMuPDF
 tenacity
+llama-index
+qdrant-client
