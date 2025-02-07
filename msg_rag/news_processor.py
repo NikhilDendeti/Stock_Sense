@@ -4,7 +4,7 @@ import uuid
 from sentence_transformers import SentenceTransformer
 from crewai_tools import ScrapeWebsiteTool
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance
+from qdrant_client.models import PointStruct, VectorParams, Distance, Filter, FieldCondition, MatchValue, MatchAny
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core import Document
 from groq import Groq
@@ -176,10 +176,12 @@ class NewsPipeline:
     def process_news(self):
         news_data = self.fetcher.fetch_news()
         articles = news_data.get("topStories", [])
+        print(len(articles))
         scraped_articles = self.scraper.scrape_articles(articles)
+        print(scraped_articles)
         all_points = []
         print(len(scraped_articles))
-        for article in scraped_articles[3:4]:
+        for article in scraped_articles[4:7]:
             node_parser = SentenceSplitter(chunk_size=350, chunk_overlap=50)
             document = Document(text=article["scraped_text"])
             nodes = node_parser.get_nodes_from_documents([document], show_progress=False)
@@ -187,6 +189,7 @@ class NewsPipeline:
 
             for node in nodes:
                 similarity = self.embedder.model.similarity(title_embedding, self.embedder.get_embedding(node.text))
+                print(similarity)
                 if similarity > 0.1:
                     metadata = self.metadata_extractor.extract_metadata(node.text)
                     all_points.append(
@@ -211,6 +214,119 @@ class NewsPipeline:
         self.qdrant.upsert_points(all_points)
 
 
+class UserPreferences:
+    def __init__(self, industries=None, stocks=None, sentiment=None, news_types=None, date=None):
+        self.industries = industries if industries else []
+        self.stocks = stocks if stocks else []
+        self.sentiment = sentiment if sentiment else None
+        self.news_types = news_types if news_types else []
+        self.date = date if date else None
+
+    def to_filter(self):
+        conditions = []
+        if self.industries:
+            conditions.append(FieldCondition(key="industries", match=MatchAny(any=self.industries)))
+        if self.stocks:
+            conditions.append(FieldCondition(key="stocks", match=MatchAny(any=self.stocks)))
+        if self.sentiment:
+            conditions.append(FieldCondition(key="sentiment", match=MatchValue(value=self.sentiment)))
+        if self.news_types:
+            conditions.append(FieldCondition(key="news_type", match=MatchAny(any=self.news_types)))
+        if self.date:
+            conditions.append(FieldCondition(key="date", match=MatchValue(value=self.date)))
+        return Filter(must=conditions) if conditions else None
+
+class NewsQueryHandler:
+    def __init__(self, qdrant_client, collection_name):
+        self.qdrant_client = qdrant_client
+        self.collection_name = collection_name
+
+    def get_news_for_user(self, user_preferences):
+        query_filter = user_preferences.to_filter()
+        response = self.qdrant_client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=query_filter,
+            limit=10
+        )
+        return [point.payload for point in response[0]]
+
+
+class NewsSummarizer:
+    def __init__(self, llm_client):
+        self.llm_client = llm_client
+
+    def generate_summary(self, news_articles):
+        print(news_articles)
+        if not news_articles:
+            return "No relevant stock market news found today based on your preferences."
+        news_text = "\n".join([f"- {article['summary']} ({article['link']})" for article in news_articles])
+        prompt = f"Summarize the following stock market news updates concisely:\n{news_text}"
+        response = self.llm_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=150,
+        )
+        return response.choices[0].message.content.strip()
+
+
+
+class SimpleNewsQuery:
+    def __init__(self, qdrant_client, collection_name):
+        self.qdrant_client = qdrant_client
+        self.collection_name = collection_name
+
+    def query_news(self, search_query, date=None, limit=10):
+        """
+        Queries Qdrant for news articles using a simple text-based search.
+        """
+        query_filter = None
+        if date:
+            query_filter = Filter(must=[FieldCondition(key="date", match=MatchValue(value=date))])
+
+        response = self.qdrant_client.search(
+            collection_name=self.collection_name,
+            query_vector=search_query,
+            query_filter=query_filter,
+            limit=limit
+        )
+        return [point.payload for point in response]
+
+# qdrant_client = QdrantClient(url="https://3f0e0b2d-447a-48bd-8c2f-3a227ff85295.eu-west-1-0.aws.cloud.qdrant.io:6333/", api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzQ2MTc3MDAyfQ.v-Kra-ZRUdTAe0OBCmCjEvZi8rW_HKY0Cw2Vp-AM5g4", timeout=60)
+# simple_news_query = SimpleNewsQuery(qdrant_client, "stock_market_news_india_5")
+# embedding = EmbeddingModel()
+# vector = embedding.get_embedding("Companies which have shared their results.")
+# news_results = simple_news_query.query_news(vector,  date="2025-02-06", limit=5)
+
+# llm_client = Groq(api_key="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")
+# news_summarizer = NewsSummarizer(llm_client)
+# print(f"📢 Queried News Articles:\n{news_results}")
+
+# summarized_news = news_summarizer.generate_summary(news_results)
+
+# print(f"📢 Stock Market Summary:\n{summarized_news}")
+
+
+
+# Usage Example
+# user_prefs = UserPreferences(
+#     industries=["Technology", "Finance"],
+#     stocks=[],
+#     sentiment="Negative",
+#     news_types=["Macroeconomic", "Market Trends", "Geopolitical Impact"]
+# )
+
+
+# news_query_handler = NewsQueryHandler(qdrant_client, "stock_market_news_india_5")
+# llm_client = Groq(api_key="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")
+# news_summarizer = NewsSummarizer(llm_client)
+# news_articles = news_query_handler.get_news_for_user(user_prefs)
+# summarized_news = news_summarizer.generate_summary(news_articles)
+
+# print(f"📢 Stock Market Summary:\n{summarized_news}")
+
+
+
 # Initialize and run the pipeline
 news_pipeline = NewsPipeline(
     news_api_key="7549ec8c3f790b338e0e57e8f5014c1ac1782714",
@@ -220,3 +336,15 @@ news_pipeline = NewsPipeline(
     llm_api_key="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"
 )
 news_pipeline.process_news()
+
+
+# user_prefs = UserPreferences(
+#     industries=["Technology", "Finance"],
+#     stocks=["AAPL", "TSLA"],
+#     sentiment="Positive",
+#     news_types=["Earnings", "Stock Movements"]
+# )
+
+# news_query_handler = NewsQueryHandler(qdrant_client, "stock_market_news")
+# llm_client = Groq(api_key="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")
+# news_summarizer = NewsSummarizer(llm_client)
