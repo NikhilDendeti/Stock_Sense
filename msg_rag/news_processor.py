@@ -8,7 +8,7 @@ from qdrant_client.models import PointStruct, VectorParams, Distance, Filter, Fi
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core import Document
 from groq import Groq
-
+from datetime import datetime
 
 class NewsFetcher:
     def __init__(self, api_key):
@@ -176,12 +176,41 @@ class NewsPipeline:
     def process_news(self):
         news_data = self.fetcher.fetch_news()
         articles = news_data.get("topStories", [])
-        print(len(articles))
+        
+        # Formatting the extracted data, including sitelinks if available
+
+        scraped_articles_with_sitelinks = []
+
+        for entry in news_data["organic"]:
+            source = entry["link"].split("/")[2]
+
+            if "sitelinks" in entry:
+                for sitelink in entry["sitelinks"]:
+                    article = {
+                        "title": entry["title"],
+                        "link": sitelink["link"],
+                        "date": entry.get("date", "N/A"),
+                        "source": source,
+                        "scraped_text": "" 
+                    }
+                    scraped_articles_with_sitelinks.append(article)
+            else:
+                article = {
+                    "title": entry["title"],
+                    "link": entry["link"],
+                    "date": entry.get("date", "N/A"),
+                    "source": source, # Placeholder for now, as scraping is not required
+                }
+                scraped_articles_with_sitelinks.append(article)
+
+        articles.extend(scraped_articles_with_sitelinks)
+
+        print(len(articles), "Total articles found")
         scraped_articles = self.scraper.scrape_articles(articles)
         print(scraped_articles)
         all_points = []
         print(len(scraped_articles))
-        for article in scraped_articles[4:7]:
+        for article in scraped_articles:
             node_parser = SentenceSplitter(chunk_size=350, chunk_overlap=50)
             document = Document(text=article["scraped_text"])
             nodes = node_parser.get_nodes_from_documents([document], show_progress=False)
@@ -191,6 +220,7 @@ class NewsPipeline:
                 similarity = self.embedder.model.similarity(title_embedding, self.embedder.get_embedding(node.text))
                 print(similarity)
                 if similarity > 0.1:
+                    current_datetime = datetime.now()
                     metadata = self.metadata_extractor.extract_metadata(node.text)
                     all_points.append(
                         PointStruct(
@@ -201,7 +231,7 @@ class NewsPipeline:
                                 "title": article["title"],
                                 "industries": metadata.get("industries", []),
                                 "stocks": metadata.get("stocks", [])[:5],
-                                "date": metadata.get("date", ""),
+                                "date": current_datetime.strftime("%Y-%m-%d"),
                                 "news_type": metadata.get("news_type", []),
                                 "sentiment": metadata.get("sentiment", "Neutral"),
                                 "summary": metadata.get("summary", ""),
@@ -260,7 +290,62 @@ class NewsSummarizer:
         if not news_articles:
             return "No relevant stock market news found today based on your preferences."
         news_text = "\n".join([f"- {article['summary']} ({article['link']})" for article in news_articles])
-        prompt = f"Summarize the following stock market news updates concisely:\n{news_text}"
+        prompt = """
+            Transform these stock market updates into a **concise, professional, and engaging digest** that provides **a complete picture of the day's events**. Ensure the summary is **easy to skim yet information-rich**. Follow this structured format:
+
+📊 **Market Overview:**  
+- Begin with a **clear sentiment statement** (e.g., bullish, bearish, volatile)  
+- Mention **key drivers** (global trends, FII/DII activity, sectoral movements)  
+- Summarize major indices (Sensex/Nifty/BSE/NASDAQ movements)  
+
+📌 **Top Headlines & Key Developments:**  
+- Use **emojis** for quick identification (⬆️/⬇️ for stock moves, 🏦 for finance, 🏭 for industrial, etc.)  
+- Cover **biggest gainers & losers**, earnings reports, FII/DII activity, government policies, and global cues  
+- Format:  
+  - **[Sector Emoji] Company Name ⬆️/⬇️ X% | Reason (e.g., Q3 profit ₹X Cr, rating change, global trends)**  
+  - Highlight **YoY, QoQ growth, or key figures** concisely  
+  - Group **related news together** for better readability  
+
+📉 **Indices & Sectoral Performance:**  
+- Summarize major index movements (**Nifty, Sensex, sectoral indices**)  
+- Mention key drivers (**banking under pressure, IT rebounds, energy stocks gain**)  
+- Add FII/DII net inflow-outflow summary  
+
+🌎 **Global & Macro Factors:**  
+- Briefly touch on **global markets, USD-INR movement, crude oil trends, bond yields**  
+- Highlight **any macroeconomic data releases (inflation, GDP, IIP, PMI)**  
+
+💡 **Final Takeaway:**  
+- End with **a concise summary** of the market sentiment & outlook  
+
+**Example Format:**
+
+📊 **Market Overview:**  
+The Indian market remained **volatile**, with Sensex closing ⬇️ 150 pts as **banking & IT stocks struggled**, while auto & pharma gained. **US Fed rate hike concerns** impacted sentiment.  
+
+📌 **Top Headlines & Key Developments:**  
+- 🏭 **ITC ⬇️ 1.2%** | Q3 profit ₹5,572Cr (-2% QoQ) | FMCG sales weak  
+- 📡 **Bharti Airtel ⬆️ 3.5%** | 460% YoY profit jump to ₹2,442Cr  
+- 🏦 **HDFC Bank ⬇️ 2.1%** | FIIs offload ₹1,200Cr | Weak loan growth  
+- 📉 **Sensex/Nifty: 2-day losing streak** | Banks drag indices  
+
+📉 **Indices & Sectoral Performance:**  
+- **Nifty50 ⬇️ 0.4%, Sensex ⬇️ 150 pts** | Auto stocks outperformed 🚗  
+- **Sectoral Movers:** Pharma & Auto **⬆️**, IT & Banks **⬇️**  
+- **FII/DII Activity:** FIIs net sell ₹1,100Cr, DIIs net buy ₹900Cr  
+
+🌎 **Global & Macro Factors:**  
+- US Fed minutes indicate **higher-for-longer rates**  
+- Crude oil **⬆️ 1.2%** | USD-INR at **₹82.65**  
+
+💡 **Final Takeaway:**  
+Markets may remain **range-bound**, awaiting US inflation data & RBI policy cues. Watch for **sector rotations** & **global cues**.  
+
+---
+
+**Actual News:**  
+{news_text}
+        """
         response = self.llm_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
@@ -295,8 +380,9 @@ class SimpleNewsQuery:
 # qdrant_client = QdrantClient(url="https://3f0e0b2d-447a-48bd-8c2f-3a227ff85295.eu-west-1-0.aws.cloud.qdrant.io:6333/", api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzQ2MTc3MDAyfQ.v-Kra-ZRUdTAe0OBCmCjEvZi8rW_HKY0Cw2Vp-AM5g4", timeout=60)
 # simple_news_query = SimpleNewsQuery(qdrant_client, "stock_market_news_india_5")
 # embedding = EmbeddingModel()
-# vector = embedding.get_embedding("Companies which have shared their results.")
-# news_results = simple_news_query.query_news(vector,  date="2025-02-06", limit=5)
+# vector = embedding.get_embedding("Indian stock market news today: Sensex, Nifty, top gainers, top losers, Q3 results, earnings, stock movements, macroeconomic updates, sector performance")
+# current_datetime = datetime.now()
+# news_results = simple_news_query.query_news(vector, current_datetime.strftime("%Y-%m-%d"), limit=5)
 
 # llm_client = Groq(api_key="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")
 # news_summarizer = NewsSummarizer(llm_client)
@@ -332,7 +418,7 @@ news_pipeline = NewsPipeline(
     news_api_key="7549ec8c3f790b338e0e57e8f5014c1ac1782714",
     qdrant_api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzQ2MTc3MDAyfQ.v-Kra-ZRUdTAe0OBCmCjEvZi8rW_HKY0Cw2Vp-AM5g4",
     qdrant_url="https://3f0e0b2d-447a-48bd-8c2f-3a227ff85295.eu-west-1-0.aws.cloud.qdrant.io:6333/",
-    collection_name="stock_market_news_india_5",
+    collection_name="stock_market_news_india_6",
     llm_api_key="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"
 )
 news_pipeline.process_news()
