@@ -12,3 +12,5 @@ PyMuPDF
 tenacity
 llama-index
 qdrant-client
+ratelimit
+tenacity
