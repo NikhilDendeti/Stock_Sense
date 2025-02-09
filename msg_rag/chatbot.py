@@ -198,7 +198,7 @@ def get_commodity_data(function: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     """
     Fetches commodity data (e.g., WTI, Brent, Natural Gas, Copper) for the last 3 days.
     """
-    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    time.sleep(API_WAIT_TIME)  
     url = f'https://www.alphavantage.co/query?function={function}&interval=daily&apikey={api_key}'
     response = requests.get(url)
     if response.status_code != 200:
@@ -225,7 +225,7 @@ def get_gdp_data(api_key: str = ALPHA_VANTAGE_API_KEY):
     """
     Fetches real GDP data.
     """
-    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    time.sleep(API_WAIT_TIME)  
     url = f'https://www.alphavantage.co/query?function=REAL_GDP&interval=annual&apikey={api_key}'
     response = requests.get(url)
     if response.status_code != 200:
@@ -241,7 +241,7 @@ def get_crypto_exchange_rate(from_currency: str, to_currency: str, api_key: str 
     """
     Fetches crypto exchange rate.
     """
-    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    time.sleep(API_WAIT_TIME)  
     url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency={from_currency}&to_currency={to_currency}&apikey={api_key}'
     response = requests.get(url)
     if response.status_code != 200:
@@ -257,7 +257,7 @@ def get_global_quote(symbol: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     """
     Fetches global stock quote for a given symbol.
     """
-    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    time.sleep(API_WAIT_TIME)  
     url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={api_key}'
     response = requests.get(url)
     if response.status_code != 200:
