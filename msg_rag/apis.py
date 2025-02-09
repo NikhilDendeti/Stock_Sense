@@ -2,7 +2,8 @@ from fastapi import FastAPI, BackgroundTasks
 from apscheduler.schedulers.background import BackgroundScheduler
 import time
 from datetime import datetime
-from news_processor import NewsPipeline
+from news_processor import NewsPipeline, UserPreferences, NewsQueryHandler, NewsSummarizer, SimpleNewsQuery
+from qdrant_client import QdrantClient
 
 app = FastAPI()
 
@@ -45,9 +46,24 @@ def run_news_pipeline():
     news_pipeline.qdrant.upsert_points(points)
     print("✅ News processing completed and stored in Qdrant.")
 
+@app.get("/get_news_summary")
+def get_news_summary():
+    qdrant_client = QdrantClient("https://3f0e0b2d-447a-48bd-8c2f-3a227ff85295.eu-west-1-0.aws.cloud.qdrant.io:6333/", api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzQ2MTc3MDAyfQ.v-Kra-ZRUdTAe0OBCmCjEvZi8rW_HKY0Cw2Vp-AM5g4")
+    simple_news_query = SimpleNewsQuery(qdrant_client, "Final_News_Articles_Collection")
+    embedding = news_pipeline.embedder
+    vector = embedding.get_embedding("Indian stock market news today: Sensex, Nifty, top gainers, top losers, Q3 results, earnings, stock movements, macroeconomic updates, sector performance")
+    current_datetime = datetime.now()
+    news_results = simple_news_query.query_news(vector, "2025-02-09", limit=10)
+
+    llm_client = news_pipeline.metadata_extractor.client
+    news_summarizer = NewsSummarizer(llm_client)
+    summarized_news = news_summarizer.generate_summary(news_results)
+
+    return {"summarized_news": summarized_news}
+
 # Initialize Scheduler
 scheduler = BackgroundScheduler()
-scheduler.add_job(run_news_pipeline, "cron", hour=23, minute=15)  # 5 PM daily
+scheduler.add_job(run_news_pipeline, "cron", hour=17, minute=0)  # Runs daily at 5 PM
 scheduler.start()
 
 @app.on_event("shutdown")

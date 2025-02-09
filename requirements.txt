@@ -15,3 +15,6 @@ qdrant-client
 ratelimit
 tenacity
 llama-index-llms-groq
+apscheduler
+fastapi
+uvicorn
