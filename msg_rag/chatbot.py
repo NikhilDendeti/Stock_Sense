@@ -114,12 +114,17 @@
 
 # get_gdp_data_tool = FunctionTool.from_defaults(get_gdp_data)
 
+
+# Need to include the commodities and forex rates as well.
 # # Example usage (Replace 'your_api_key' with actual API key):
 # print(get_stock_news_tool("AAPL", "67a6e6000d6a32.79767451"))
 # print(get_daily_stock_prices_tool("IBM", "PBCPW7HGMTS82RJ6"))
 # print(get_global_quote_tool("IBM", "PBCPW7HGMTS82RJ6"))
 # print(get_crypto_exchange_rate_tool("BTC", "EUR", "PBCPW7HGMTS82RJ6"))
 # print(get_gdp_data_tool("PBCPW7HGMTS82RJ6"))
+
+
+
 
 
 import requests
@@ -134,119 +139,152 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from typing import Any, Dict
 
 # Set API Keys
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 ALPHA_VANTAGE_API_KEY = "PBCPW7HGMTS82RJ6"
-EODHD_API_KEY = " 67a6e6000d6a32.79767451"
+EODHD_API_KEY = "67a6e6000d6a32.79767451"
 
 # Logging Configuration
 logging.basicConfig(level=logging.INFO)
 
-# --- API LIMITS ---
-## Groq API Limits
-GROQ_TPM_LIMIT = 6000  # Max 6000 tokens per minute
-GROQ_REQUEST_LIMIT = 30  # Max 30 requests per minute
-GROQ_WAIT_TIME = 60  # If limit is reached, wait for 1 minute before retrying
-
-## Alpha Vantage Limits (Free Tier)
-ALPHA_VANTAGE_RPM = 5  # Max 5 requests per minute
-ALPHA_VANTAGE_WAIT_TIME = 60 / ALPHA_VANTAGE_RPM  # Auto wait to respect limit
-
-## EODHD Limits (Unknown official limit, assuming 10 requests per minute)
+# --- API Limits ---
+ALPHA_VANTAGE_RPM = 5
 EODHD_RPM = 10
-EODHD_WAIT_TIME = 60 / EODHD_RPM
-
+API_WAIT_TIME = 60  # 1-minute wait between API calls
 
 # --- Initialize LLM Client ---
 llm_client = Groq(api_key=GROQ_API_KEY)
 
-
-# --- Function to Handle Stock Symbol Correction ---
+# --- Function to Fetch Stock News and Generate Summary ---
 @sleep_and_retry
-@limits(calls=GROQ_REQUEST_LIMIT, period=60)  # Limit: 30 requests per minute
-@retry(stop=stop_after_attempt(5), wait=wait_fixed(GROQ_WAIT_TIME))  # Retry if failed, wait for reset
-def correct_stock_symbol(user_input: str):
+@limits(calls=EODHD_RPM, period=60)
+def get_stock_news(symbol: str, api_token: str = EODHD_API_KEY, user_query: str = ""):
     """
-    Uses Groq LLM to correct a stock symbol.
-    If the request exceeds token limits, it will wait for 1 minute and retry.
+    Fetches stock news and generates a focused summary based on the user's query while ensuring the total content does not exceed 27,000 characters.
     """
-    prompt = f"""
-    You are a financial assistant with expertise in stock symbols.
-    Given a potentially incorrect stock symbol entered by a user, return ONLY the corrected stock symbol.
-    Do not add extra text. If the input is invalid, return 'INVALID'.
-
-    User Input: '{user_input}'
-    Corrected Symbol: """
-
-    logging.info("Sending request to Groq for stock symbol correction...")
+    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    url = f'https://eodhd.com/api/news?s={symbol}.US&offset=0&limit=10&api_token={api_token}&fmt=json'
+    response = requests.get(url)
+    if response.status_code != 200:
+        return "❌ Unable to fetch stock news. Please try again later."
     
+    news = response.json()
+    content_list = []
+    total_chars = 0
+    
+    for article in news:
+        content = article.get("content", "")
+        if total_chars + len(content) <= 2500:
+            content_list.append(content)
+            total_chars += len(content)
+    
+    if not content_list:
+        return "No relevant news articles available at the moment."
+    
+    summary_prompt = f"Summarize the following stock news focusing on answering the user's query: '{user_query}'\n\n" + "\n".join(content_list)
     response = llm_client.chat.completions.create(
         model="llama3-70b-8192",
-        messages=[{"role": "system", "content": prompt}],
+        messages=[{"role": "system", "content": summary_prompt}],
         temperature=0.3,
         top_p=0.9
     )
+    summary_response = response.choices[0].message.content.strip()
+    
+    return f"📢 **Summary of Latest News for {symbol}:**\n\n{summary_response}"
 
-    corrected_symbol = response.choices[0].message.content.strip()
-    return corrected_symbol if corrected_symbol.isalnum() else "INVALID"
-
-
-# --- Function to Fetch Stock News with Rate Limiting ---
+# --- Function to Fetch Commodity Data ---
 @sleep_and_retry
-@limits(calls=EODHD_RPM, period=60)  # Limit: 10 requests per minute
-def get_stock_news(symbol: str, api_token: str = EODHD_API_KEY):
+@limits(calls=ALPHA_VANTAGE_RPM, period=60)
+def get_commodity_data(function: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     """
-    Fetches stock news with a strict rate limit of 10 requests per minute.
-    If exceeded, it waits for 60 seconds before retrying.
+    Fetches commodity data (e.g., WTI, Brent, Natural Gas, Copper) for the last 3 days.
     """
-    logging.info(f"Fetching news for {symbol}...")
-    url = f'https://eodhd.com/api/news?s={symbol}.US&offset=0&limit=10&api_token={api_token}&fmt=json'
+    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    url = f'https://www.alphavantage.co/query?function={function}&interval=daily&apikey={api_key}'
     response = requests.get(url)
-    return response.json() if response.status_code == 200 else {"error": "Failed to fetch stock news"}
+    if response.status_code != 200:
+        return f"❌ Unable to fetch data for {function}. Please try again later."
 
+    data = response.json()
+    time_series = data.get("Time Series (Daily)", {})
+    if not time_series:
+        return f"No daily data available for {function}."
 
-# --- Function to Fetch Daily Stock Prices with Rate Limiting ---
+    # Get the last 3 days of data
+    last_3_days = list(time_series.keys())[:3]
+    result = {date: time_series[date] for date in last_3_days}
+
+    return {
+        "commodity": function,
+        "last_3_days_data": result
+    }
+
+# --- Function to Fetch Real GDP Data ---
 @sleep_and_retry
-@limits(calls=ALPHA_VANTAGE_RPM, period=60)  # Limit: 5 requests per minute
-def get_daily_stock_prices(symbol: str, api_key: str = ALPHA_VANTAGE_API_KEY):
+@limits(calls=ALPHA_VANTAGE_RPM, period=60)
+def get_gdp_data(api_key: str = ALPHA_VANTAGE_API_KEY):
     """
-    Fetches daily stock prices with a strict rate limit of 5 requests per minute.
-    If exceeded, it waits for 60 seconds before retrying.
+    Fetches real GDP data.
     """
-    logging.info(f"Fetching stock prices for {symbol}...")
-    time.sleep(ALPHA_VANTAGE_WAIT_TIME)  # Prevents exceeding API rate
-    url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}'
+    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    url = f'https://www.alphavantage.co/query?function=REAL_GDP&interval=annual&apikey={api_key}'
     response = requests.get(url)
-    return response.json() if response.status_code == 200 else {"error": "Failed to fetch stock prices"}
+    if response.status_code != 200:
+        return "❌ Unable to fetch GDP data. Please try again later."
+    
+    data = response.json()
+    return data
 
-
-# --- Function to Fetch Crypto Exchange Rate with Rate Limiting ---
+# --- Function to Fetch Crypto Exchange Rate ---
 @sleep_and_retry
-@limits(calls=ALPHA_VANTAGE_RPM, period=60)  # Limit: 5 requests per minute
+@limits(calls=ALPHA_VANTAGE_RPM, period=60)
 def get_crypto_exchange_rate(from_currency: str, to_currency: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     """
-    Fetches crypto exchange rate with a strict rate limit of 5 requests per minute.
-    If exceeded, it waits for 60 seconds before retrying.
+    Fetches crypto exchange rate.
     """
-    logging.info(f"Fetching exchange rate from {from_currency} to {to_currency}...")
-    time.sleep(ALPHA_VANTAGE_WAIT_TIME)  # Prevents exceeding API rate
+    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
     url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency={from_currency}&to_currency={to_currency}&apikey={api_key}'
     response = requests.get(url)
-    return response.json() if response.status_code == 200 else {"error": "Failed to fetch exchange rate"}
+    if response.status_code != 200:
+        return f"❌ Unable to fetch exchange rate for {from_currency} to {to_currency}. Please try again later."
+    
+    data = response.json()
+    return data
 
+# --- Function to Fetch Global Stock Quote ---
+@sleep_and_retry
+@limits(calls=ALPHA_VANTAGE_RPM, period=60)
+def get_global_quote(symbol: str, api_key: str = ALPHA_VANTAGE_API_KEY):
+    """
+    Fetches global stock quote for a given symbol.
+    """
+    time.sleep(API_WAIT_TIME)  # Enforce 60s gap between API calls
+    url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={api_key}'
+    response = requests.get(url)
+    if response.status_code != 200:
+        return f"❌ Unable to fetch global quote for {symbol}. Please try again later."
+    
+    data = response.json()
+    return data
 
 # --- Register Functions as Tools ---
-correct_stock_symbol_tool = FunctionTool.from_defaults(correct_stock_symbol)
 get_stock_news_tool = FunctionTool.from_defaults(get_stock_news)
-get_daily_stock_prices_tool = FunctionTool.from_defaults(get_daily_stock_prices)
+get_commodity_data_tool = FunctionTool.from_defaults(get_commodity_data)
+get_gdp_data_tool = FunctionTool.from_defaults(get_gdp_data)
 get_crypto_exchange_rate_tool = FunctionTool.from_defaults(get_crypto_exchange_rate)
-
+get_global_quote_tool = FunctionTool.from_defaults(get_global_quote)
 
 # --- Initialize LLaMA Model ---
 llm = GroqLLM(model="llama3-70b-8192", api_key=GROQ_API_KEY)
 
 # --- Create ReAct Agent ---
 agent = ReActAgent.from_tools(
-    [get_stock_news_tool, get_daily_stock_prices_tool, get_crypto_exchange_rate_tool],
+    [
+        get_stock_news_tool,
+        get_commodity_data_tool,
+        get_gdp_data_tool,
+        get_crypto_exchange_rate_tool,
+        get_global_quote_tool
+    ],
     llm=llm,
     verbose=True
 )
@@ -254,8 +292,24 @@ agent = ReActAgent.from_tools(
 # --- Example Usage ---
 if __name__ == "__main__":
     try:
-        print(agent.chat("What is the latest news about Apple stock?"))
-        print(agent.chat("Get the daily price for IBM."))
-        print(agent.chat("What's the exchange rate between BTC and EUR?"))
+        # Test Stock News
+        print(agent.chat("What is the latest news about AAPL stock?"))
+        time.sleep(API_WAIT_TIME)
+        
+        # Test Commodity Data
+        print(agent.chat("Get the latest data for WTI."))
+        time.sleep(API_WAIT_TIME)
+        print(agent.chat("Get the latest data for Brent."))
+        
+        # Test GDP Data
+        print(agent.chat("Get the latest real GDP data."))
+        time.sleep(API_WAIT_TIME)
+        
+        # Test Crypto Exchange Rate
+        print(agent.chat("What is the exchange rate between BTC and USD?"))
+        time.sleep(API_WAIT_TIME)
+        
+        # Test Global Quote
+        print(agent.chat("What is the current global quote for IBM?"))
     except Exception as e:
         logging.error(f"Error: {str(e)}")
