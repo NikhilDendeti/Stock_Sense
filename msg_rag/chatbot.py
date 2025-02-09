@@ -251,7 +251,7 @@ def get_crypto_exchange_rate(from_currency: str, to_currency: str, api_key: str 
     return data
 
 # --- Function to Fetch Global Stock Quote ---
-@sleep_and_retry
+
 @limits(calls=ALPHA_VANTAGE_RPM, period=60)
 def get_global_quote(symbol: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     """
@@ -286,30 +286,30 @@ agent = ReActAgent.from_tools(
         get_global_quote_tool
     ],
     llm=llm,
-    verbose=False
+    verbose=True
 )
 
 # --- Example Usage ---
 if __name__ == "__main__":
     try:
         # Test Stock News
-        print(agent.chat("What is the latest news about AAPL stock?"))
+        print(agent.chat("What is the stock price of reilance industries?"))
         time.sleep(API_WAIT_TIME)
         
-        # Test Commodity Data
-        print(agent.chat("Get the latest data for WTI."))
-        time.sleep(API_WAIT_TIME)
-        print(agent.chat("Get the latest data for Brent."))
+        # # Test Commodity Data
+        # print(agent.chat("Get the latest data for WTI."))
+        # time.sleep(API_WAIT_TIME)
+        # print(agent.chat("Get the latest data for Brent."))
         
-        # Test GDP Data
-        print(agent.chat("Get the latest real GDP data."))
-        time.sleep(API_WAIT_TIME)
+        # # Test GDP Data
+        # print(agent.chat("Get the latest real GDP data."))
+        # time.sleep(API_WAIT_TIME)
         
-        # Test Crypto Exchange Rate
-        print(agent.chat("What is the exchange rate between BTC and USD?"))
-        time.sleep(API_WAIT_TIME)
+        # # Test Crypto Exchange Rate
+        # print(agent.chat("What is the exchange rate between BTC and USD?"))
+        # time.sleep(API_WAIT_TIME)
         
-        # Test Global Quote
-        print(agent.chat("What is the current global quote for IBM?"))
+        # # Test Global Quote
+        # print(agent.chat("What is the current global quote for IBM?"))
     except Exception as e:
         logging.error(f"Error: {str(e)}")

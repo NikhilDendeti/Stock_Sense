@@ -417,38 +417,6 @@ class SimpleNewsQuery:
 
 # print(f"📢 Stock Market Summary:\n{summarized_news}")
 
-
-
-# Initialize and run the pipeline
-news_pipeline = NewsPipeline(
-    news_api_key="7549ec8c3f790b338e0e57e8f5014c1ac1782714",
-    qdrant_api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzQ2MTc3MDAyfQ.v-Kra-ZRUdTAe0OBCmCjEvZi8rW_HKY0Cw2Vp-AM5g4",
-    qdrant_url="https://3f0e0b2d-447a-48bd-8c2f-3a227ff85295.eu-west-1-0.aws.cloud.qdrant.io:6333/",
-    collection_name="Stock_Market_News_Unique",
-    llm_api_key="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"
-)
-scraped_articles = news_pipeline.process_news()
-total_articles = len(scraped_articles)
-batch_size = 2
-wait_time = 180
-
-points = []
-
-for i in range(0, total_articles, batch_size):
-    batch = scraped_articles[i:i + batch_size]
-    print(f"🚀 Processing batch {i // batch_size + 1}: {len(batch)} articles")
-    
-    temp_points = news_pipeline.process_scraped_articles(batch)
-    points.extend(temp_points)
-
-    if i + batch_size < total_articles:
-        print(f"⏳ Waiting for {wait_time // 60} minutes before the next batch...")
-        time.sleep(wait_time)
-
-
-news_pipeline.qdrant.upsert_points(points)
-
-
 # user_prefs = UserPreferences(
 #     industries=["Technology", "Finance"],
 #     stocks=["AAPL", "TSLA"],
