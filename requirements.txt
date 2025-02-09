@@ -14,3 +14,4 @@ llama-index
 qdrant-client
 ratelimit
 tenacity
+llama-index-llms-groq

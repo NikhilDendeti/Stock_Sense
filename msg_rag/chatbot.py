@@ -216,6 +216,7 @@ def get_daily_stock_prices(symbol: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     time.sleep(ALPHA_VANTAGE_WAIT_TIME)  # Prevents exceeding API rate
     url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}'
     response = requests.get(url)
+    print(response)
     return response.json() if response.status_code == 200 else {"error": "Failed to fetch stock prices"}
 
 
@@ -248,14 +249,14 @@ llm = GroqLLM(model="llama3-70b-8192", api_key=GROQ_API_KEY)
 agent = ReActAgent.from_tools(
     [get_stock_news_tool, get_daily_stock_prices_tool, get_crypto_exchange_rate_tool],
     llm=llm,
-    verbose=True
+    verbose=False
 )
 
 # --- Example Usage ---
 if __name__ == "__main__":
     try:
-        print(agent.chat("What is the latest news about Apple stock?"))
-        print(agent.chat("Get the daily price for IBM."))
+        # print(agent.chat("What is the latest news about Infosys stock?"))
+        print(agent.chat("Get the current price for IBM."))
         print(agent.chat("What's the exchange rate between BTC and EUR?"))
     except Exception as e:
         logging.error(f"Error: {str(e)}")

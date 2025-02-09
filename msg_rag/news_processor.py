@@ -9,6 +9,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core import Document
 from groq import Groq
 from datetime import datetime
+import time
 
 class NewsFetcher:
     def __init__(self, api_key):
@@ -144,7 +145,7 @@ class MetadataExtractor:
                 top_p=0.9
             )
             extracted_text = response.choices[0].message.content.strip()
-            print(extracted_text)
+            # print(extracted_text)
             extracted_metadata = json.loads(extracted_text)
             return self.clean_json_output(extracted_text)
         except json.JSONDecodeError:
@@ -172,6 +173,7 @@ class NewsPipeline:
         self.embedder = EmbeddingModel()
         self.qdrant = QdrantHandler(qdrant_api_key, qdrant_url, collection_name)
         self.metadata_extractor = MetadataExtractor(llm_api_key)
+        self.all_scraped_articles = []
 
     def process_news(self):
         news_data = self.fetcher.fetch_news()
@@ -204,21 +206,24 @@ class NewsPipeline:
                 scraped_articles_with_sitelinks.append(article)
 
         articles.extend(scraped_articles_with_sitelinks)
-
+        
         print(len(articles), "Total articles found")
         scraped_articles = self.scraper.scrape_articles(articles)
-        print(scraped_articles)
+        self.all_scraped_articles = scraped_articles
+        return scraped_articles
+    
+    def process_scraped_articles(self, scraped_articles):
         all_points = []
-        print(len(scraped_articles))
+        print(len(scraped_articles), "Total articles to process")
         for article in scraped_articles:
             node_parser = SentenceSplitter(chunk_size=350, chunk_overlap=50)
             document = Document(text=article["scraped_text"])
             nodes = node_parser.get_nodes_from_documents([document], show_progress=False)
             title_embedding = self.embedder.get_embedding(article["title"])
-
+            print(len(nodes), "No of nodes found")
             for node in nodes:
                 similarity = self.embedder.model.similarity(title_embedding, self.embedder.get_embedding(node.text))
-                print(similarity)
+                # print(similarity)
                 if similarity > 0.1:
                     current_datetime = datetime.now()
                     metadata = self.metadata_extractor.extract_metadata(node.text)
@@ -240,8 +245,9 @@ class NewsPipeline:
                             }
                         )
                     )
-
-        self.qdrant.upsert_points(all_points)
+        print(len(all_points), "Total points found")
+        return all_points
+        # self.qdrant.upsert_points(all_points)
 
 
 class UserPreferences:
@@ -418,10 +424,29 @@ news_pipeline = NewsPipeline(
     news_api_key="7549ec8c3f790b338e0e57e8f5014c1ac1782714",
     qdrant_api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzQ2MTc3MDAyfQ.v-Kra-ZRUdTAe0OBCmCjEvZi8rW_HKY0Cw2Vp-AM5g4",
     qdrant_url="https://3f0e0b2d-447a-48bd-8c2f-3a227ff85295.eu-west-1-0.aws.cloud.qdrant.io:6333/",
-    collection_name="stock_market_news_india_6",
-    llm_api_key="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"
+    collection_name="Stock_Market_News_Unique",
+    llm_api_key="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"
 )
-news_pipeline.process_news()
+scraped_articles = news_pipeline.process_news()
+total_articles = len(scraped_articles)
+batch_size = 2
+wait_time = 180
+
+points = []
+
+for i in range(0, total_articles, batch_size):
+    batch = scraped_articles[i:i + batch_size]
+    print(f"🚀 Processing batch {i // batch_size + 1}: {len(batch)} articles")
+    
+    temp_points = news_pipeline.process_scraped_articles(batch)
+    points.extend(temp_points)
+
+    if i + batch_size < total_articles:
+        print(f"⏳ Waiting for {wait_time // 60} minutes before the next batch...")
+        time.sleep(wait_time)
+
+
+news_pipeline.qdrant.upsert_points(points)
 
 
 # user_prefs = UserPreferences(
