@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from qdrant_client import QdrantClient
+import yfinance as yf
 import re
 import json
 
@@ -121,7 +122,7 @@ def extract_symbol_from_query(user_query: str, query_type: str):
     Only applies if the function requires a symbol for an API request.
     """
     prompt = (
-        f"You are an intelligent finance assistant. The user is asking about {query_type}. "
+        f"You are an intelligent finance assistant. The user is asking about {query_type}."
         f"Extract the correct symbol or name from their query.\n\n"
         f"User Query: '{user_query}'\n\n"
         f"Respond with only the symbol or name, nothing else."
@@ -134,6 +135,7 @@ def extract_symbol_from_query(user_query: str, query_type: str):
             temperature=0.3,
             top_p=0.9
         )
+        print(response.choices[0].message.content.strip())
         return response.choices[0].message.content.strip()
     except Exception as e:
         logging.error(f"Symbol extraction error: {str(e)}")
@@ -183,12 +185,44 @@ def get_stock_news(user_query: str, api_token: str = EODHD_API_KEY):
             top_p=0.9
         )
         summary_response = response.choices[0].message.content.strip()
-        return f"📢 **Summary of Latest News for {symbol}:**\n\n{summary_response}"
+        text = f"📢 **Summary of Latest News for {symbol}:**\n\n{summary_response}"
+        return {
+            "summary": convert_markdown_to_html(text),
+        }
+        
     except Exception as e:
         logging.error(f"LLM summarization error: {str(e)}")
         return "⚠️ Unable to generate a news summary at this time. Please check back later."
 
 
+
+def convert_stock_data_for_chart(raw_data, symbol):
+    """
+    Converts raw stock price data into a format suitable for charting.
+    - "name" will be the formatted date (Month Day).
+    - "value" will be the closing price.
+    
+    :param raw_data: Dictionary containing stock price data.
+    :return: List of dictionaries formatted for chart usage.
+    """
+    # Extract closing prices
+    closing_prices = raw_data.get(('Close', symbol), {})
+
+    if not closing_prices:
+        return []
+
+    # Convert to required format
+    formatted_data = [
+        {
+            "name": date.strftime("%b %d"),  # Format as "Feb 04"
+            "value": round(price, 2)  # Round price to 2 decimal places
+        }
+        for date, price in closing_prices.items()
+    ]
+
+    return {
+        "stock_price": formatted_data,
+    }
 
 def get_stock_price(user_query: str):
     """
@@ -202,13 +236,15 @@ def get_stock_price(user_query: str):
         df = yf.download(symbol, period="5d")
         if df.empty:
             return f"❌ No stock data found for {symbol}."
-        return df.tail(5).to_dict()
+        print(df.tail(5).to_dict())
+        data = convert_stock_data_for_chart(df.tail(5).to_dict(), symbol)
+        print(data)
+        return data
     except Exception as e:
         logging.error(f"Yahoo Finance API error: {str(e)}")
         return f"❌ Unable to fetch stock price data for {symbol}. Please try again later."
     
 
-# Valid commodity names (must be in uppercase as required by Alpha Vantage)
 VALID_COMMODITIES = {
     "COPPER", "NATURAL_GAS", "BRENT", "WTI", "ALUMINUM",
     "WHEAT", "CORN", "COTTON", "SUGAR", "COFFEE", "ALL_COMMODITIES"
@@ -268,7 +304,7 @@ def get_commodity_data(user_query: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     # Step 3: Extract only the last 3 dates
     time_series = data.get("data", [])  # Adjust based on Alpha Vantage JSON response format
     last_3_dates = time_series[:5] if len(time_series) >= 5 else time_series
-    
+    print(last_3_dates)
 
     return {
         "commodity": commodity,
@@ -343,7 +379,6 @@ try:
             FunctionTool.from_defaults(get_stock_news),
             FunctionTool.from_defaults(get_commodity_data),
             FunctionTool.from_defaults(get_crypto_exchange_rate),
-            FunctionTool.from_defaults(get_global_quote),
             FunctionTool.from_defaults(get_gdp_data),
             FunctionTool.from_defaults(get_stock_price),
         ],
@@ -360,7 +395,6 @@ FUNCTIONS = {
     "stock_news": get_stock_news,
     "commodity_data": get_commodity_data,
     "crypto_exchange_rate": get_crypto_exchange_rate,
-    "global_stock_quote": get_global_quote,
     "gdp_data": get_gdp_data,
     "stock_price": get_stock_price,
 }
@@ -378,6 +412,7 @@ def classify_query(user_query: str) -> Optional[str]:
         f"- 'crypto_exchange_rate' (if the query is about crypto exchange rates like BTC/USD)\n"
         f"- 'global_stock_quote' (if the query is about stock prices)\n"
         f"- 'gdp_data' (if the query is about GDP data)\n\n"
+        f"- 'stock_price' (if the query is asking about stock prices)\n"
         f"Otherwise, respond with 'none'.\n\n"
         f"User Query: '{user_query}'\n\n"
         f"Respond with only one word: the category name or 'none'."
