@@ -189,6 +189,25 @@ def get_stock_news(user_query: str, api_token: str = EODHD_API_KEY):
         return "⚠️ Unable to generate a news summary at this time. Please check back later."
 
 
+
+def get_stock_price(user_query: str):
+    """
+    Fetches stock price data for the last 5 days using Yahoo Finance.
+    """
+    symbol = extract_symbol_from_query(user_query, "a stock ticker")
+    if not symbol:
+        return "⚠️ Unable to determine the stock symbol from your query. Please try again."
+    
+    try:
+        df = yf.download(symbol, period="5d")
+        if df.empty:
+            return f"❌ No stock data found for {symbol}."
+        return df.tail(5).to_dict()
+    except Exception as e:
+        logging.error(f"Yahoo Finance API error: {str(e)}")
+        return f"❌ Unable to fetch stock price data for {symbol}. Please try again later."
+    
+
 # Valid commodity names (must be in uppercase as required by Alpha Vantage)
 VALID_COMMODITIES = {
     "COPPER", "NATURAL_GAS", "BRENT", "WTI", "ALUMINUM",
@@ -284,6 +303,17 @@ def get_crypto_exchange_rate(user_query: str, api_key: str = ALPHA_VANTAGE_API_K
         "crypto_data": data
     }
 
+def get_gdp_data(api_key: str = ALPHA_VANTAGE_API_KEY):
+    """
+    Fetches real GDP data.
+    """
+    url = f'https://www.alphavantage.co/query?function=REAL_GDP&interval=annual&apikey={api_key}'
+    response = requests.get(url)
+    if response.status_code != 200:
+        return "❌ Unable to fetch GDP data. Please try again later."
+    
+    data = response.json()
+    return data
 
 def get_global_quote(user_query: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     """
@@ -314,6 +344,8 @@ try:
             FunctionTool.from_defaults(get_commodity_data),
             FunctionTool.from_defaults(get_crypto_exchange_rate),
             FunctionTool.from_defaults(get_global_quote),
+            FunctionTool.from_defaults(get_gdp_data),
+            FunctionTool.from_defaults(get_stock_price),
         ],
         llm=GroqLLM(model="llama3-70b-8192", api_key=GROQ_API_KEY),
         verbose=True
@@ -329,6 +361,8 @@ FUNCTIONS = {
     "commodity_data": get_commodity_data,
     "crypto_exchange_rate": get_crypto_exchange_rate,
     "global_stock_quote": get_global_quote,
+    "gdp_data": get_gdp_data,
+    "stock_price": get_stock_price,
 }
 
 
@@ -343,6 +377,7 @@ def classify_query(user_query: str) -> Optional[str]:
         f"- 'commodity_data' (if the query is about commodities like gold, oil, etc.)\n"
         f"- 'crypto_exchange_rate' (if the query is about crypto exchange rates like BTC/USD)\n"
         f"- 'global_stock_quote' (if the query is about stock prices)\n"
+        f"- 'gdp_data' (if the query is about GDP data)\n\n"
         f"Otherwise, respond with 'none'.\n\n"
         f"User Query: '{user_query}'\n\n"
         f"Respond with only one word: the category name or 'none'."
@@ -357,6 +392,7 @@ def classify_query(user_query: str) -> Optional[str]:
         )
         category = response.choices[0].message.content.strip().lower()
         return category if category in FUNCTIONS else None
+    
     except Exception as e:
         logging.error(f"Query classification error: {str(e)}")
         return None
