@@ -297,19 +297,19 @@ if __name__ == "__main__":
         time.sleep(API_WAIT_TIME)
         
         # # Test Commodity Data
-        # print(agent.chat("Get the latest data for WTI."))
-        # time.sleep(API_WAIT_TIME)
-        # print(agent.chat("Get the latest data for Brent."))
+        print(agent.chat("Get the latest data for WTI."))
+        time.sleep(API_WAIT_TIME)
+        print(agent.chat("Get the latest data for Brent."))
         
         # # Test GDP Data
-        # print(agent.chat("Get the latest real GDP data."))
-        # time.sleep(API_WAIT_TIME)
+        print(agent.chat("Get the latest real GDP data."))
+        time.sleep(API_WAIT_TIME)
         
         # # Test Crypto Exchange Rate
-        # print(agent.chat("What is the exchange rate between BTC and USD?"))
-        # time.sleep(API_WAIT_TIME)
+        print(agent.chat("What is the exchange rate between BTC and USD?"))
+        time.sleep(API_WAIT_TIME)
         
         # # Test Global Quote
-        # print(agent.chat("What is the current global quote for IBM?"))
+        print(agent.chat("What is the current global quote for IBM?"))
     except Exception as e:
         logging.error(f"Error: {str(e)}")
