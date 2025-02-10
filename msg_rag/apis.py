@@ -14,8 +14,13 @@ from llama_index.core.tools import FunctionTool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from qdrant_client import QdrantClient
+import re
 
-# Load environment variables
+def convert_markdown_to_html(text):
+    """Converts markdown bold (**text**) to HTML bold (<b>text</b>)."""
+    return re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
+
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
@@ -23,13 +28,10 @@ EODHD_API_KEY = os.getenv("EODHD_API_KEY")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 
-# Initialize Logging
 logging.basicConfig(level=logging.INFO)
 
-# Initialize FastAPI app
 app = FastAPI(title="Stock Market API", version="1.0")
 
-# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,20 +40,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize NewsPipeline
 try:
     news_pipeline = NewsPipeline(
         news_api_key=os.getenv("NEWS_API_KEY"),
         qdrant_api_key=QDRANT_API_KEY,
         qdrant_url=QDRANT_URL,
-        collection_name="Final_News_Articles_Collection",
+        collection_name="Todays_Collection",
         llm_api_key=GROQ_API_KEY
     )
 except Exception as e:
     logging.error(f"Failed to initialize NewsPipeline: {str(e)}")
     news_pipeline = None
 
-# Background Task to Run News Pipeline
 def run_news_pipeline():
     if not news_pipeline:
         logging.error("NewsPipeline is not initialized")
@@ -60,6 +60,7 @@ def run_news_pipeline():
     try:
         logging.info(f"🚀 Running News Pipeline at {datetime.now()}...")
         scraped_articles = news_pipeline.process_news()
+        news_pipeline.process_scraped_articles(scraped_articles[:5])
         logging.info("✅ News processing completed")
     except Exception as e:
         logging.error(f"News pipeline execution failed: {str(e)}")
@@ -73,7 +74,36 @@ def fetch_and_process_news(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_news_pipeline)
     return {"message": "News processing started in the background."}
 
-# Initialize LLM Client
+class ReportQuery(BaseModel):
+    user_query: str
+
+@app.get("/daily-report")
+async def generate_daily_report():
+    if not news_pipeline:
+        raise HTTPException(status_code=500, detail="News pipeline is not available")
+    
+    try:
+        qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=60)
+        simple_news_query = SimpleNewsQuery(qdrant_client, "Todays_Collection")
+        embedding = EmbeddingModel()
+        vector = embedding.get_embedding("Indian stock market news today: Sensex, Nifty, top gainers, top losers, Q3 results, earnings, stock movements, macroeconomic updates, sector performance")
+        current_datetime = datetime.now()
+        news_results = simple_news_query.query_news(vector, current_datetime.strftime("%Y-%m-%d"), limit=8)
+
+        llm_client = Groq(api_key=GROQ_API_KEY)
+        news_summarizer = NewsSummarizer(llm_client)
+        print(f"📢 Queried News Articles:\n{news_results}")
+
+        summarized_news = news_summarizer.generate_summary(news_results)
+
+        print(f"📢 Stock Market Summary:\n{summarized_news}")
+        formatted_news = convert_markdown_to_html(summarized_news)
+
+        return JSONResponse(content=formatted_news)
+    except Exception as e:
+        logging.error(f"Failed to generate daily report: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate daily report")
+
 if not GROQ_API_KEY:
     raise ValueError("Missing GROQ_API_KEY in environment variables")
 llm_client = Groq(api_key=GROQ_API_KEY)
@@ -396,7 +426,7 @@ async def process_query(user_query: UserQuery) -> Dict[str, str]:
 # Scheduler Setup
 scheduler = BackgroundScheduler()
 try:
-    scheduler.add_job(run_news_pipeline, "cron", hour=17, minute=0)
+    scheduler.add_job(run_news_pipeline, "cron", hour=13, minute=2)
     scheduler.start()
 except Exception as e:
     logging.error(f"Failed to start scheduler: {str(e)}")
