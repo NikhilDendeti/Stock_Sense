@@ -11,7 +11,6 @@
 👉 **Daily Personalized Summaries** – AI-generated stock market insights tailored to user preferences.  
 👉 **Real-Time Market Chatbot** – Ask questions about stocks, trends, and financial events.  
 👉 **Stock Price & Commodity Tracking** – Fetch latest stock prices, commodity data, GDP, and crypto exchange rates.  
-👉 **History Tracking** – Access past market summaries in an intuitive timeline.  
 👉 **Important Market Alerts** – Get notified about critical financial updates.  
 
 ---
