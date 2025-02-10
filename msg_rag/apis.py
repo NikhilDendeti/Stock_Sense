@@ -5,7 +5,7 @@ import os
 import logging
 import requests
 from dotenv import load_dotenv
-from news_processor import NewsPipeline
+from news_processor import NewsPipeline, SimpleNewsQuery, EmbeddingModel, NewsSummarizer
 from typing import Dict, Optional
 from groq import Groq
 from llama_index.core.agent import ReActAgent
@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from qdrant_client import QdrantClient
 import re
+import json
 
 def convert_markdown_to_html(text):
     """Converts markdown bold (**text**) to HTML bold (<b>text</b>)."""
@@ -248,6 +249,7 @@ def get_commodity_data(user_query: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     # Step 3: Extract only the last 3 dates
     time_series = data.get("data", [])  # Adjust based on Alpha Vantage JSON response format
     last_3_dates = time_series[:5] if len(time_series) >= 5 else time_series
+    
 
     return {
         "commodity": commodity,

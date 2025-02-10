@@ -18,3 +18,4 @@ llama-index-llms-groq
 fastapi
 uvicorn
 apscheduler
+yfinance
