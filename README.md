@@ -13,7 +13,6 @@
 👉 **Stock Price & Commodity Tracking** – Fetch latest stock prices, commodity data, GDP, and crypto exchange rates.  
 👉 **History Tracking** – Access past market summaries in an intuitive timeline.  
 👉 **Important Market Alerts** – Get notified about critical financial updates.  
-👉 **Feedback Mechanism** – Improve AI recommendations through user feedback.  
 
 ---
 
@@ -25,7 +24,6 @@
 
 ### **Backend:**  
 👉 **FastAPI** – High-performance API development  
-👉 **JWT Authentication** – Secure user login & session handling  
 
 ### **AI & Data Processing:**  
 👉 **LLaMA-3.3-70B (Groq API)** – AI-powered summarization & chatbot  
@@ -106,10 +104,6 @@ JWT_SECRET=your_secret_key
 
 ## **📈 API Endpoints (Backend)**  
 
-### **User Authentication**  
-👉 `POST /auth/register` – Register a new user  
-👉 `POST /auth/login` – Login & get JWT token  
-
 ### **Stock Market Summaries**  
 👉 `GET /summary/daily` – Fetch personalized daily stock summary  
 👉 `GET /summary/history` – Retrieve past summaries  
@@ -153,17 +147,6 @@ git push origin feature-new-enhancement
 
 ---
 
-## **📄 License**
-This project is licensed under the **MIT License**.  
-
----
-
-## **📲 Contact & Support**  
-💌 **Email:** your-email@example.com  
-👉 **GitHub:** [yourusername](https://github.com/yourusername)  
-🌐 **Website:** [yourprojectwebsite.com](https://yourprojectwebsite.com)  
-
----
 
 ## **⭐ Star This Repo!**  
 If you found this project useful, please **star this repository** ⭐ and contribute!  
