@@ -38,7 +38,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/personalized-stock-summary.git
+git clone [https://github.com/yourusername/personalized-stock-summary.git](https://github.com/NikhilDendeti/Stock_Sense.git)
 
 # Navigate to backend directory
 cd backend
