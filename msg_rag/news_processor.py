@@ -108,7 +108,6 @@ class MetadataExtractor:
         - "news_type" is categorized using predefined categories but allows flexibility.
         - "stocks" should contain at most 5 stock tickers.
         - "sentiment" is categorized as Positive, Negative, or Neutral.
-        - "summary" is concise (under 25 words).
         - Don't include JSON in the response heading.
         -Don't include any headings in the response body. Like metadata:. I only want Pure JSON format.
 
@@ -147,6 +146,7 @@ class MetadataExtractor:
             extracted_text = response.choices[0].message.content.strip()
             # print(extracted_text)
             extracted_metadata = json.loads(extracted_text)
+            print(extracted_metadata)
             return self.clean_json_output(extracted_text)
         except json.JSONDecodeError:
             print("Error parsing LLM response. Skipping this chunk.")
@@ -223,7 +223,6 @@ class NewsPipeline:
             print(len(nodes), "No of nodes found")
             for node in nodes:
                 similarity = self.embedder.model.similarity(title_embedding, self.embedder.get_embedding(node.text))
-                # print(similarity)
                 if similarity > 0.1:
                     current_datetime = datetime.now()
                     metadata = self.metadata_extractor.extract_metadata(node.text)
@@ -246,8 +245,9 @@ class NewsPipeline:
                         )
                     )
         print(len(all_points), "Total points found")
+        self.qdrant.upsert_points(all_points)
         return all_points
-        # self.qdrant.upsert_points(all_points)
+        
 
 
 class UserPreferences:
