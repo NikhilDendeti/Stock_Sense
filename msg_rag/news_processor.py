@@ -296,67 +296,47 @@ class NewsSummarizer:
         if not news_articles:
             return "No relevant stock market news found today based on your preferences."
         news_text = "\n".join([f"- {article['summary']} ({article['link']})" for article in news_articles])
-        prompt = """
-            Transform these stock market updates into a **concise, professional, and engaging digest** that provides **a complete picture of the day's events**. Ensure the summary is **easy to skim yet information-rich**. Follow this structured format:
+        prompt = f"""
+📊 Market Overview:
+Start with a clear sentiment statement (bullish, bearish, volatile, mixed)
+Mention key market drivers (global trends, sector movements, institutional flows, economic data, corporate actions)
+Summarize major index movements (Sensex, Nifty50, BSE, Nasdaq, Dow Jones, etc.) with percentage changes
+Highlight any major trends or sector rotations driving market sentiment
 
-📊 **Market Overview:**  
-- Begin with a **clear sentiment statement** (e.g., bullish, bearish, volatile)  
-- Mention **key drivers** (global trends, FII/DII activity, sectoral movements)  
-- Summarize major indices (Sensex/Nifty/BSE/NASDAQ movements)  
+📌 Top Headlines & Key Developments:
+Cover all major market-moving news, including:
+- Biggest gainers & losers with reasons for movement
+- Earnings reports (YoY & QoQ performance, revenue & profit changes)
+- FII/DII activity, block deals, insider trades
+- Government policies & regulatory updates affecting sectors
+- Global market cues influencing domestic trends
+- Sector-specific news (IT, Pharma, Banking, Energy, etc.)
 
-📌 **Top Headlines & Key Developments:**  
-- Use **emojis** for quick identification (⬆️/⬇️ for stock moves, 🏦 for finance, 🏭 for industrial, etc.)  
-- Cover **biggest gainers & losers**, earnings reports, FII/DII activity, government policies, and global cues  
-- Format:  
-  - **[Sector Emoji] Company Name ⬆️/⬇️ X% | Reason (e.g., Q3 profit ₹X Cr, rating change, global trends)**  
-  - Highlight **YoY, QoQ growth, or key figures** concisely  
-  - Group **related news together** for better readability  
+📉 Indices & Sectoral Performance:
+Summarize major index movements (Nifty50, Sensex, Bank Nifty, Midcap, Smallcap) with absolute & percentage changes
+Breakdown of sector-wise performance (Top gaining & losing sectors)
+FII/DII net inflow-outflow details (with ₹ figures)
+Mention any significant institutional moves that impacted sectors
 
-📉 **Indices & Sectoral Performance:**  
-- Summarize major index movements (**Nifty, Sensex, sectoral indices**)  
-- Mention key drivers (**banking under pressure, IT rebounds, energy stocks gain**)  
-- Add FII/DII net inflow-outflow summary  
+🌎 Global & Macro Factors:
+Cover global market movements (Dow Jones, S&P 500, FTSE, Nikkei, etc.)
+Track USD-INR movement, crude oil price fluctuations, bond yields
+Mention important macroeconomic indicators (GDP growth, inflation, PMI, IIP, interest rate policies)
 
-🌎 **Global & Macro Factors:**  
-- Briefly touch on **global markets, USD-INR movement, crude oil trends, bond yields**  
-- Highlight **any macroeconomic data releases (inflation, GDP, IIP, PMI)**  
+💡 Final Takeaway & Market Outlook:
+Provide a forward-looking view on what may influence the market next
+Mention any upcoming economic events, data releases, or geopolitical risks
+Highlight sectoral trends & potential stock movements for the next session
 
-💡 **Final Takeaway:**  
-- End with **a concise summary** of the market sentiment & outlook  
-
-**Example Format:**
-
-📊 **Market Overview:**  
-The Indian market remained **volatile**, with Sensex closing ⬇️ 150 pts as **banking & IT stocks struggled**, while auto & pharma gained. **US Fed rate hike concerns** impacted sentiment.  
-
-📌 **Top Headlines & Key Developments:**  
-- 🏭 **ITC ⬇️ 1.2%** | Q3 profit ₹5,572Cr (-2% QoQ) | FMCG sales weak  
-- 📡 **Bharti Airtel ⬆️ 3.5%** | 460% YoY profit jump to ₹2,442Cr  
-- 🏦 **HDFC Bank ⬇️ 2.1%** | FIIs offload ₹1,200Cr | Weak loan growth  
-- 📉 **Sensex/Nifty: 2-day losing streak** | Banks drag indices  
-
-📉 **Indices & Sectoral Performance:**  
-- **Nifty50 ⬇️ 0.4%, Sensex ⬇️ 150 pts** | Auto stocks outperformed 🚗  
-- **Sectoral Movers:** Pharma & Auto **⬆️**, IT & Banks **⬇️**  
-- **FII/DII Activity:** FIIs net sell ₹1,100Cr, DIIs net buy ₹900Cr  
-
-🌎 **Global & Macro Factors:**  
-- US Fed minutes indicate **higher-for-longer rates**  
-- Crude oil **⬆️ 1.2%** | USD-INR at **₹82.65**  
-
-💡 **Final Takeaway:**  
-Markets may remain **range-bound**, awaiting US inflation data & RBI policy cues. Watch for **sector rotations** & **global cues**.  
-
----
-
-**Actual News:**  
+-If you don't have any data points mentioned above just don't hallucinate and give random answers. Don't answer that question.
+-Don't include any emojis. Bold the sideheadings only.
+📰 **Actual News Articles:**  
 {news_text}
-        """
+"""
         response = self.llm_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=150,
         )
         return response.choices[0].message.content.strip()
 
