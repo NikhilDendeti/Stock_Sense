@@ -86,7 +86,7 @@ async def generate_daily_report():
     
     try:
         qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=60)
-        simple_news_query = SimpleNewsQuery(qdrant_client, "Todays_Collection")
+        simple_news_query = SimpleNewsQuery(qdrant_client, "News_Articles")
         embedding = EmbeddingModel()
         vector = embedding.get_embedding("Indian stock market news today: Sensex, Nifty, top gainers, top losers, Q3 results, earnings, stock movements, macroeconomic updates, sector performance")
         current_datetime = datetime.now()
@@ -174,6 +174,7 @@ def get_stock_news(user_query: str, api_token: str = EODHD_API_KEY):
         f"You are a stock market expert chatbot assisting a user with stock updates.\n"
         f"The user asked: '{user_query}'.\n"
         f"Summarize the following stock news while focusing on answering the user's question:\n\n"
+        f"Don't give me any reasoning like I'd be happy to provide you with the latest news about. I want only the summary"
         + "\n".join(content_list)
     )
     
@@ -349,7 +350,17 @@ def get_gdp_data(api_key: str = ALPHA_VANTAGE_API_KEY):
         return "❌ Unable to fetch GDP data. Please try again later."
     
     data = response.json()
-    return data
+    current_year = datetime.now().year
+    filtered_data = [entry for entry in data["data"] if int(entry["date"][:4]) >= current_year - 10]
+
+    filtered_data_structure = {
+        "name": data["name"],
+        "interval": data["interval"],
+        "unit": data["unit"],
+        "data": filtered_data
+    }
+    print(filtered_data)
+    return filtered_data_structure
 
 def get_global_quote(user_query: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     """
@@ -372,6 +383,9 @@ def get_global_quote(user_query: str, api_key: str = ALPHA_VANTAGE_API_KEY):
     return {
         "stock_quote": data
     }
+
+
+
 # Initialize ReAct Agent
 try:
     agent = ReActAgent.from_tools(
@@ -460,6 +474,27 @@ async def process_query(user_query: UserQuery) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail="Failed to process query")
 
 
+YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/^NSEI?range=5d&interval=1d"
+
+@app.get("/market-data")
+def get_market_data():
+    """Fetch the last 5 days of NIFTY and BANKNIFTY data."""
+    nifty_df = yf.download("^NSEI", period="30d")
+    banknifty_df = yf.download("^NSEBANK", period="30d")
+
+    if nifty_df.empty or banknifty_df.empty:
+        return {"error": "No stock data found for NIFTY or BANKNIFTY"}
+
+    nifty_data = convert_stock_data_for_chart(nifty_df.tail(30).to_dict(), "^NSEI")
+    banknifty_data = convert_stock_data_for_chart(banknifty_df.tail(30).to_dict(), "^NSEBANK")
+
+    return {
+        "nifty": nifty_data["stock_price"],
+        "banknifty": banknifty_data["stock_price"],
+    }
+
+
+
 # Scheduler Setup
 scheduler = BackgroundScheduler()
 try:
@@ -476,3 +511,5 @@ def shutdown_event():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
