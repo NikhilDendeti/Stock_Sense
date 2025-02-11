@@ -90,7 +90,8 @@ async def generate_daily_report():
         embedding = EmbeddingModel()
         vector = embedding.get_embedding("Indian stock market news today: Sensex, Nifty, top gainers, top losers, Q3 results, earnings, stock movements, macroeconomic updates, sector performance")
         current_datetime = datetime.now()
-        news_results = simple_news_query.query_news(vector, current_datetime.strftime("%Y-%m-%d"), limit=8)
+        # current_datetime.strftime("%Y-%m-%d")
+        news_results = simple_news_query.query_news(vector, "2025-02-11", limit=8)
 
         llm_client = Groq(api_key=GROQ_API_KEY)
         news_summarizer = NewsSummarizer(llm_client)
