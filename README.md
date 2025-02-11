@@ -125,7 +125,7 @@ JWT_SECRET=your_secret_key
 
 ---
 ## **Application Doc**
-👉 bit.ly/42Rg8Lf
+👉 [bit.ly/42Rg8Lf](https://bit.ly/42Rg8Lf)
 
 
 ## **💪 Contributing**
