@@ -124,6 +124,9 @@ JWT_SECRET=your_secret_key
 👉 **Multi-Language Support** – Expand accessibility 🌐  
 
 ---
+## **Application Doc**
+👉 https://docs.google.com/document/d/1SPKxKq-Utv4eaOs6TwUGrbOXDBk8cZzgnEsDSUowfY0/edit?usp=sharing
+
 
 ## **💪 Contributing**
 💡 **Want to contribute?** Fork the repository and submit a PR!  
@@ -140,6 +143,9 @@ git commit -m "Added a new feature"
 
 # Push changes
 git push origin feature-new-enhancement
+
+'''
+
 
 # Submit a Pull Request!
 ```
